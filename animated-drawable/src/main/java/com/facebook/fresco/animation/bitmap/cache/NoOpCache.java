@@ -43,6 +43,11 @@ public class NoOpCache implements BitmapFrameCache {
   }
 
   @Override
+  public boolean contains(int frameNumber) {
+    return false;
+  }
+
+  @Override
   public int getSizeInBytes() {
     return 0;
   }
@@ -55,8 +60,21 @@ public class NoOpCache implements BitmapFrameCache {
   @Override
   public void onFrameRendered(
       int frameNumber,
-      CloseableReference<Bitmap> bitmap,
+      CloseableReference<Bitmap> bitmapReference,
       @BitmapAnimationBackend.FrameType int frameType) {
     // no-op
+  }
+
+  @Override
+  public void onFramePrepared(
+      int frameNumber,
+      CloseableReference<Bitmap> bitmapReference,
+      @BitmapAnimationBackend.FrameType int frameType) {
+    // Does not cache anything
+  }
+
+  @Override
+  public void setFrameCacheListener(FrameCacheListener frameCacheListener) {
+    // Does not cache anything
   }
 }

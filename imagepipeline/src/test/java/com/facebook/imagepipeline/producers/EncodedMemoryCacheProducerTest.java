@@ -19,11 +19,11 @@ import com.facebook.cache.common.CacheKey;
 import com.facebook.cache.common.MultiCacheKey;
 import com.facebook.cache.common.SimpleCacheKey;
 import com.facebook.common.internal.ImmutableMap;
+import com.facebook.common.memory.PooledByteBuffer;
 import com.facebook.common.references.CloseableReference;
 import com.facebook.imagepipeline.cache.CacheKeyFactory;
 import com.facebook.imagepipeline.cache.MemoryCache;
 import com.facebook.imagepipeline.image.EncodedImage;
-import com.facebook.imagepipeline.memory.PooledByteBuffer;
 import com.facebook.imagepipeline.request.ImageRequest;
 
 import org.junit.*;
@@ -118,6 +118,7 @@ public class EncodedMemoryCacheProducerTest {
     Map<String, String> extraMap =
         ImmutableMap.of(EncodedMemoryCacheProducer.EXTRA_CACHED_VALUE_FOUND, "true");
     verify(mProducerListener).onProducerFinishWithSuccess(mRequestId, PRODUCER_NAME, extraMap);
+    verify(mProducerListener).onUltimateProducerReached(mRequestId, PRODUCER_NAME, true);
     Assert.assertFalse(mFinalImageReference.isValid());
   }
 
@@ -142,6 +143,8 @@ public class EncodedMemoryCacheProducerTest {
     Map<String, String> extraMap =
         ImmutableMap.of(EncodedMemoryCacheProducer.EXTRA_CACHED_VALUE_FOUND, "false");
     verify(mProducerListener).onProducerFinishWithSuccess(mRequestId, PRODUCER_NAME, extraMap);
+    verify(mProducerListener, never())
+        .onUltimateProducerReached(anyString(), anyString(), anyBoolean());
   }
 
   @Test
@@ -154,6 +157,8 @@ public class EncodedMemoryCacheProducerTest {
     Map<String, String> extraMap =
         ImmutableMap.of(EncodedMemoryCacheProducer.EXTRA_CACHED_VALUE_FOUND, "false");
     verify(mProducerListener).onProducerFinishWithSuccess(mRequestId, PRODUCER_NAME, extraMap);
+    verify(mProducerListener, never())
+        .onUltimateProducerReached(anyString(), anyString(), anyBoolean());
   }
 
   @Test
@@ -166,6 +171,8 @@ public class EncodedMemoryCacheProducerTest {
     Map<String, String> extraMap =
         ImmutableMap.of(EncodedMemoryCacheProducer.EXTRA_CACHED_VALUE_FOUND, "false");
     verify(mProducerListener).onProducerFinishWithSuccess(mRequestId, PRODUCER_NAME, extraMap);
+    verify(mProducerListener, never())
+        .onUltimateProducerReached(anyString(), anyString(), anyBoolean());
   }
 
   @Test
@@ -179,6 +186,7 @@ public class EncodedMemoryCacheProducerTest {
     Map<String, String> extraMap =
         ImmutableMap.of(EncodedMemoryCacheProducer.EXTRA_CACHED_VALUE_FOUND, "false");
     verify(mProducerListener).onProducerFinishWithSuccess(mRequestId, PRODUCER_NAME, extraMap);
+    verify(mProducerListener).onUltimateProducerReached(mRequestId, PRODUCER_NAME, false);
     verifyNoMoreInteractions(mInputProducer);
   }
 

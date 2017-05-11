@@ -75,6 +75,16 @@ public class DraweeHolderTest {
   }
 
   @Test
+  public void testSetControllerBeforeHierarchy() {
+    mDraweeHolder = new DraweeHolder(null);
+    mDraweeHolder.setController(mController);
+    mDraweeHolder.setHierarchy(mDraweeHierarchy);
+    assertSame(mController, mDraweeHolder.getController());
+    assertSame(mDraweeHierarchy, mDraweeHolder.getHierarchy());
+    assertSame(mDraweeHierarchy, mController.getHierarchy());
+  }
+
+  @Test
   public void testClearControllerKeepsHierarchy() {
     mDraweeHolder.setController(mController);
     mDraweeHolder.setController(null);
@@ -123,78 +133,6 @@ public class DraweeHolderTest {
     mDraweeHolder.onAttach();
     mDraweeHolder.onDetach();
     mDraweeHolder.onAttach();
-  }
-
-  @Test
-  public void testAttachAndTrim() {
-    mDraweeHolder.setController(mController);
-    mDraweeHolder.onAttach();
-    mDraweeHolder.trim();
-    mInOrderVerifier.verify(mController).onAttach();
-    mInOrderVerifier.verify(mController).onDetach();
-    assertTrue(mDraweeHolder.isAttached());
-  }
-
-  @Test
-  public void testAttachTrimUntrim() {
-    mDraweeHolder.setController(mController);
-    mDraweeHolder.onAttach();
-    mDraweeHolder.trim();
-    mDraweeHolder.untrim();
-    mInOrderVerifier.verify(mController).onAttach();
-    mInOrderVerifier.verify(mController).onDetach();
-    mInOrderVerifier.verify(mController).onAttach();
-    assertTrue(mDraweeHolder.isAttached());
-  }
-
-  @Test
-  public void testAttachTrimDetachUntrim() {
-    mDraweeHolder.setController(mController);
-    mDraweeHolder.onAttach();
-    mDraweeHolder.trim();
-    mDraweeHolder.onDetach();
-    mDraweeHolder.untrim();
-    mInOrderVerifier.verify(mController).onAttach();
-    mInOrderVerifier.verify(mController).onDetach();
-    assertFalse(mDraweeHolder.isAttached());
-  }
-
-  @Test
-  public void testAttachTrimUntrimDetach() {
-    mDraweeHolder.setController(mController);
-    mDraweeHolder.onAttach();
-    mDraweeHolder.trim();
-    mDraweeHolder.untrim();
-    mDraweeHolder.onDetach();
-    mInOrderVerifier.verify(mController).onAttach();
-    mInOrderVerifier.verify(mController).onDetach();
-    mInOrderVerifier.verify(mController).onAttach();
-    mInOrderVerifier.verify(mController).onDetach();
-    assertFalse(mDraweeHolder.isAttached());
-  }
-
-  @Test
-  public void testDetachPreventsUntrim() {
-    mDraweeHolder.setController(mController);
-    mDraweeHolder.onAttach();
-    mDraweeHolder.onDetach();
-    mDraweeHolder.trim();
-    mDraweeHolder.untrim();
-    assertFalse(mDraweeHolder.isAttached());
-  }
-
-  @Test
-  public void testReattachAfterTrim() {
-    mDraweeHolder.setController(mController);
-    mDraweeHolder.onAttach();
-    mDraweeHolder.trim();
-    mDraweeHolder.onDetach();
-    mDraweeHolder.untrim();
-    mDraweeHolder.onAttach();
-    mInOrderVerifier.verify(mController).onAttach();
-    mInOrderVerifier.verify(mController).onDetach();
-    mInOrderVerifier.verify(mController).onAttach();
-    assertTrue(mDraweeHolder.isAttached());
   }
 
   @Test

@@ -18,11 +18,11 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.provider.MediaStore;
 
+import com.facebook.common.memory.PooledByteBuffer;
+import com.facebook.common.memory.PooledByteBufferFactory;
 import com.facebook.imagepipeline.common.Priority;
 import com.facebook.imagepipeline.common.ResizeOptions;
 import com.facebook.imagepipeline.image.EncodedImage;
-import com.facebook.imagepipeline.memory.PooledByteBuffer;
-import com.facebook.imagepipeline.memory.PooledByteBufferFactory;
 import com.facebook.imagepipeline.request.ImageRequest;
 import com.facebook.imagepipeline.testing.FakeClock;
 import com.facebook.imagepipeline.testing.TestExecutorService;
@@ -163,6 +163,9 @@ public class LocalContentUriThumbnailFetchProducerTest {
     produceResultsAndRunUntilIdle();
 
     assertConsumerReceivesImage();
+    verify(mProducerListener).onProducerStart(mRequestId, PRODUCER_NAME);
+    verify(mProducerListener).onProducerFinishWithSuccess(mRequestId, PRODUCER_NAME, null);
+    verify(mProducerListener).onUltimateProducerReached(mRequestId, PRODUCER_NAME, true);
   }
 
   @Test(expected = RuntimeException.class)
@@ -174,6 +177,7 @@ public class LocalContentUriThumbnailFetchProducerTest {
     verify(mProducerListener).onProducerStart(mRequestId, PRODUCER_NAME);
     verify(mProducerListener).onProducerFinishWithFailure(
         mRequestId, PRODUCER_NAME, mException, null);
+    verify(mProducerListener).onUltimateProducerReached(mRequestId, PRODUCER_NAME, false);
   }
 
   @Test

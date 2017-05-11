@@ -21,16 +21,16 @@ import android.view.MotionEvent;
 import com.facebook.common.internal.Objects;
 import com.facebook.common.internal.Preconditions;
 import com.facebook.common.logging.FLog;
+import com.facebook.datasource.BaseDataSubscriber;
+import com.facebook.datasource.DataSource;
+import com.facebook.datasource.DataSubscriber;
 import com.facebook.drawee.components.DeferredReleaser;
 import com.facebook.drawee.components.DraweeEventTracker;
 import com.facebook.drawee.components.RetryManager;
 import com.facebook.drawee.gestures.GestureDetector;
-import com.facebook.drawee.interfaces.DraweeHierarchy;
 import com.facebook.drawee.interfaces.DraweeController;
+import com.facebook.drawee.interfaces.DraweeHierarchy;
 import com.facebook.drawee.interfaces.SettableDraweeHierarchy;
-import com.facebook.datasource.BaseDataSubscriber;
-import com.facebook.datasource.DataSource;
-import com.facebook.datasource.DataSubscriber;
 
 import static com.facebook.drawee.components.DraweeEventTracker.Event;
 

@@ -22,12 +22,12 @@ import java.util.concurrent.Future;
 import android.os.SystemClock;
 
 import com.facebook.common.internal.Throwables;
+import com.facebook.common.memory.ByteArrayPool;
+import com.facebook.common.memory.PooledByteBuffer;
+import com.facebook.common.memory.PooledByteBufferFactory;
+import com.facebook.common.memory.PooledByteBufferOutputStream;
 import com.facebook.common.references.CloseableReference;
 import com.facebook.imagepipeline.common.Priority;
-import com.facebook.imagepipeline.memory.ByteArrayPool;
-import com.facebook.imagepipeline.memory.PooledByteBuffer;
-import com.facebook.imagepipeline.memory.PooledByteBufferFactory;
-import com.facebook.imagepipeline.memory.PooledByteBufferOutputStream;
 import com.facebook.imagepipeline.request.ImageRequest;
 
 import org.junit.*;
@@ -74,7 +74,6 @@ public class NetworkFetchProducerTest {
   public void setUp() {
     MockitoAnnotations.initMocks(this);
     PowerMockito.mockStatic(SystemClock.class);
-    when(mImageRequest.getProgressiveRenderingEnabled()).thenReturn(true);
     mNetworkFetchProducer = new NetworkFetchProducer(
         mPooledByteBufferFactory,
         mByteArrayPool,
@@ -118,6 +117,8 @@ public class NetworkFetchProducerTest {
         eq(NetworkFetchProducer.PRODUCER_NAME),
         any(RuntimeException.class),
         isNull(Map.class));
+    verify(mProducerListener)
+        .onUltimateProducerReached(mRequestId, NetworkFetchProducer.PRODUCER_NAME, false);
   }
 
   @Test(timeout = 5000)
@@ -216,6 +217,8 @@ public class NetworkFetchProducerTest {
         NetworkFetchProducer.INTERMEDIATE_RESULT_PRODUCER_EVENT);
     verify(mProducerListener).onProducerFinishWithSuccess(
         eq(mRequestId), eq(NetworkFetchProducer.PRODUCER_NAME), eq(mExtrasMap));
+    verify(mProducerListener)
+        .onUltimateProducerReached(mRequestId, NetworkFetchProducer.PRODUCER_NAME, true);
     verify(mConsumer, times(1)).onNewResult(any(CloseableReference.class), eq(true));
     verifyPooledByteBufferUsed(3);
 

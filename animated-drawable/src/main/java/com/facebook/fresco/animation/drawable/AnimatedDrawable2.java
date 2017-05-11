@@ -32,9 +32,32 @@ import com.facebook.fresco.animation.frame.FrameScheduler;
  */
 public class AnimatedDrawable2 extends Drawable implements Animatable, DrawableWithCaches {
 
+  /**
+   * {@link #draw(Canvas)} listener that is notified for each draw call. Can be used for debugging.
+   */
+  public interface DrawListener {
+
+    void onDraw(
+        AnimatedDrawable2 animatedDrawable,
+        FrameScheduler frameScheduler,
+        int frameNumberToDraw,
+        boolean frameDrawn,
+        boolean isAnimationRunning,
+        long animationStartTimeMs,
+        long animationTimeMs,
+        long lastFrameAnimationTimeMs,
+        long actualRenderTimeStartMs,
+        long actualRenderTimeEndMs,
+        long startRenderTimeForNextFrameMs,
+        long scheduledRenderTimeForNextFrameMs);
+  }
+
   private static final Class<?> TAG = AnimatedDrawable2.class;
 
   private static final AnimationListener NO_OP_LISTENER = new BaseAnimationListener();
+
+  private static final int DEFAULT_FRAME_SCHEDULING_DELAY_MS = 8;
+  private static final int DEFAULT_FRAME_SCHEDULING_OFFSET_MS = 0;
 
   @Nullable
   private AnimationBackend mAnimationBackend;
@@ -46,11 +69,16 @@ public class AnimatedDrawable2 extends Drawable implements Animatable, DrawableW
   private long mStartTimeMs;
   private long mLastFrameAnimationTimeMs;
 
+  private long mFrameSchedulingDelayMs = DEFAULT_FRAME_SCHEDULING_DELAY_MS;
+  private long mFrameSchedulingOffsetMs = DEFAULT_FRAME_SCHEDULING_OFFSET_MS;
+
   // Animation statistics
   private int mDroppedFrames;
 
   // Listeners
   private volatile AnimationListener mAnimationListener = NO_OP_LISTENER;
+  @Nullable
+  private volatile DrawListener mDrawListener = null;
 
   // Holder for drawable properties like alpha to be able to re-apply if the backend changes.
   // The instance is created lazily only if needed.
@@ -130,6 +158,7 @@ public class AnimatedDrawable2 extends Drawable implements Animatable, DrawableW
 
   /**
    * Check whether the animation is running.
+   *
    * @return true if the animation is currently running
    */
   @Override
@@ -152,15 +181,13 @@ public class AnimatedDrawable2 extends Drawable implements Animatable, DrawableW
     }
     long actualRenderTimeStartMs = now();
     long animationTimeMs = mIsRunning
-        ? actualRenderTimeStartMs - mStartTimeMs
+        ? actualRenderTimeStartMs - mStartTimeMs + mFrameSchedulingOffsetMs
         : Math.max(mLastFrameAnimationTimeMs, 0);
 
     // What frame should be drawn?
     int frameNumberToDraw = mFrameScheduler.getFrameNumberToRender(
         animationTimeMs,
         mLastFrameAnimationTimeMs);
-
-    mLastFrameAnimationTimeMs = animationTimeMs;
 
     // Check if the animation is finished and draw last frame if so
     if (frameNumberToDraw == FrameScheduler.FRAME_NUMBER_DONE) {
@@ -183,25 +210,35 @@ public class AnimatedDrawable2 extends Drawable implements Animatable, DrawableW
       onFrameDropped();
     }
 
+    long targetRenderTimeForNextFrameMs = FrameScheduler.NO_NEXT_TARGET_RENDER_TIME;
+    long scheduledRenderTimeForNextFrameMs = -1;
+    long actualRenderTimeEnd = now();
     if (mIsRunning) {
-      // Log performance
-      long actualRenderTimeEnd = now();
-      if (FLog.isLoggable(FLog.VERBOSE)) {
-        FLog.v(
-            TAG,
-            "Animation jitter: %s ms. Render time: %s ms. Frame drawn: %s",
-            actualRenderTimeStartMs -
-                (mFrameScheduler.getTargetRenderTimeMs(frameNumberToDraw) + mStartTimeMs),
-            actualRenderTimeEnd - actualRenderTimeStartMs,
-            frameDrawn);
-      }
-      // Schedule the next frame if needed
-      long targetRenderTimeForNextFrameMs =
+      // Schedule the next frame if needed.
+      targetRenderTimeForNextFrameMs =
           mFrameScheduler.getTargetRenderTimeForNextFrameMs(actualRenderTimeEnd - mStartTimeMs);
       if (targetRenderTimeForNextFrameMs != FrameScheduler.NO_NEXT_TARGET_RENDER_TIME) {
-        scheduleNextFrame(targetRenderTimeForNextFrameMs);
+        scheduledRenderTimeForNextFrameMs =
+            targetRenderTimeForNextFrameMs + mFrameSchedulingDelayMs;
+        scheduleNextFrame(scheduledRenderTimeForNextFrameMs);
       }
     }
+    if (mDrawListener != null) {
+      mDrawListener.onDraw(
+          this,
+          mFrameScheduler,
+          frameNumberToDraw,
+          frameDrawn,
+          mIsRunning,
+          mStartTimeMs,
+          animationTimeMs,
+          mLastFrameAnimationTimeMs,
+          actualRenderTimeStartMs,
+          actualRenderTimeEnd,
+          targetRenderTimeForNextFrameMs,
+          scheduledRenderTimeForNextFrameMs);
+    }
+    mLastFrameAnimationTimeMs = animationTimeMs;
   }
 
   @Override
@@ -330,13 +367,45 @@ public class AnimatedDrawable2 extends Drawable implements Animatable, DrawableW
   }
 
   /**
+   * Frame scheduling delay to shift the target render time for a frame within the frame's
+   * visible window. If the value is set to 0, the frame will be scheduled right at the beginning
+   * of the frame's visible window.
+   *
+   * @param frameSchedulingDelayMs the delay to use in ms
+   */
+  public void setFrameSchedulingDelayMs(long frameSchedulingDelayMs) {
+    mFrameSchedulingDelayMs = frameSchedulingDelayMs;
+  }
+
+  /**
+   * Frame scheduling offset to shift the animation time by the given offset.
+   * This is similar to {@link #mFrameSchedulingDelayMs} but instead of delaying the invalidation,
+   * this offsets the animation time by the given value.
+   *
+   * @param frameSchedulingOffsetMs the offset to use in ms
+   */
+  public void setFrameSchedulingOffsetMs(long frameSchedulingOffsetMs) {
+    mFrameSchedulingOffsetMs = frameSchedulingOffsetMs;
+  }
+
+  /**
    * Set an animation listener that is notified for various animation events.
+   *
    * @param animationListener the listener to use
    */
   public void setAnimationListener(@Nullable AnimationListener animationListener) {
     mAnimationListener = animationListener != null
         ? animationListener
         : NO_OP_LISTENER;
+  }
+
+  /**
+   * Set a draw listener that is notified for each {@link #draw(Canvas)} call.
+   *
+   * @param drawListener the listener to use
+   */
+  public void setDrawListener(@Nullable DrawListener drawListener) {
+    mDrawListener = drawListener;
   }
 
   /**

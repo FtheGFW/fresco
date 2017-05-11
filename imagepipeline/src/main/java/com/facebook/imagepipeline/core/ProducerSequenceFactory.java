@@ -16,17 +16,16 @@ import android.net.Uri;
 
 import com.facebook.common.internal.Preconditions;
 import com.facebook.common.internal.VisibleForTesting;
-import com.facebook.common.media.MediaUtils;
+import com.facebook.common.memory.PooledByteBuffer;
 import com.facebook.common.references.CloseableReference;
-import com.facebook.common.util.UriUtil;
 import com.facebook.common.webp.WebpSupportStatus;
 import com.facebook.imagepipeline.image.CloseableImage;
 import com.facebook.imagepipeline.image.EncodedImage;
-import com.facebook.imagepipeline.memory.PooledByteBuffer;
 import com.facebook.imagepipeline.producers.BitmapMemoryCacheKeyMultiplexProducer;
 import com.facebook.imagepipeline.producers.BitmapMemoryCacheProducer;
 import com.facebook.imagepipeline.producers.DecodeProducer;
 import com.facebook.imagepipeline.producers.EncodedMemoryCacheProducer;
+import com.facebook.imagepipeline.producers.QualifiedResourceFetchProducer;
 import com.facebook.imagepipeline.producers.LocalAssetFetchProducer;
 import com.facebook.imagepipeline.producers.LocalContentUriFetchProducer;
 import com.facebook.imagepipeline.producers.LocalFileFetchProducer;
@@ -44,6 +43,15 @@ import com.facebook.imagepipeline.producers.ThrottlingProducer;
 import com.facebook.imagepipeline.producers.ThumbnailBranchProducer;
 import com.facebook.imagepipeline.producers.ThumbnailProducer;
 import com.facebook.imagepipeline.request.ImageRequest;
+
+import static com.facebook.imagepipeline.common.SourceUriType.SOURCE_TYPE_DATA;
+import static com.facebook.imagepipeline.common.SourceUriType.SOURCE_TYPE_LOCAL_ASSET;
+import static com.facebook.imagepipeline.common.SourceUriType.SOURCE_TYPE_LOCAL_CONTENT;
+import static com.facebook.imagepipeline.common.SourceUriType.SOURCE_TYPE_LOCAL_IMAGE_FILE;
+import static com.facebook.imagepipeline.common.SourceUriType.SOURCE_TYPE_LOCAL_RESOURCE;
+import static com.facebook.imagepipeline.common.SourceUriType.SOURCE_TYPE_LOCAL_VIDEO_FILE;
+import static com.facebook.imagepipeline.common.SourceUriType.SOURCE_TYPE_NETWORK;
+import static com.facebook.imagepipeline.common.SourceUriType.SOURCE_TYPE_QUALIFIED_RESOURCE;
 
 public class ProducerSequenceFactory {
 
@@ -71,6 +79,7 @@ public class ProducerSequenceFactory {
   @VisibleForTesting Producer<CloseableReference<CloseableImage>> mLocalResourceFetchSequence;
   @VisibleForTesting Producer<CloseableReference<CloseableImage>> mLocalAssetFetchSequence;
   @VisibleForTesting Producer<CloseableReference<CloseableImage>> mDataFetchSequence;
+  @VisibleForTesting Producer<CloseableReference<CloseableImage>> mQualifiedResourceFetchSequence;
   @VisibleForTesting Map<
       Producer<CloseableReference<CloseableImage>>,
       Producer<CloseableReference<CloseableImage>>>
@@ -107,13 +116,16 @@ public class ProducerSequenceFactory {
     validateEncodedImageRequest(imageRequest);
     final Uri uri = imageRequest.getSourceUri();
 
-    if (UriUtil.isNetworkUri(uri)) {
-      return getNetworkFetchEncodedImageProducerSequence();
-    } else if (UriUtil.isLocalFileUri(uri)) {
-      return getLocalFileFetchEncodedImageProducerSequence();
-    } else {
-      throw new IllegalArgumentException(
-          "Unsupported uri scheme for encoded image fetch! Uri is: " + getShortenedUriString(uri));
+    switch (imageRequest.getSourceUriType()) {
+      case SOURCE_TYPE_NETWORK:
+        return getNetworkFetchEncodedImageProducerSequence();
+      case SOURCE_TYPE_LOCAL_VIDEO_FILE:
+      case SOURCE_TYPE_LOCAL_IMAGE_FILE:
+        return getLocalFileFetchEncodedImageProducerSequence();
+      default:
+        throw new IllegalArgumentException(
+            "Unsupported uri scheme for encoded image fetch! Uri is: "
+                + getShortenedUriString(uri));
     }
   }
 
@@ -156,15 +168,18 @@ public class ProducerSequenceFactory {
    */
   public Producer<Void> getEncodedImagePrefetchProducerSequence(ImageRequest imageRequest) {
     validateEncodedImageRequest(imageRequest);
-    final Uri uri = imageRequest.getSourceUri();
 
-    if (UriUtil.isNetworkUri(uri)) {
-      return getNetworkFetchToEncodedMemoryPrefetchSequence();
-    } else if (UriUtil.isLocalFileUri(uri)) {
-      return getLocalFileFetchToEncodedMemoryPrefetchSequence();
-    } else {
-      throw new IllegalArgumentException(
-          "Unsupported uri scheme for encoded image fetch! Uri is: " + getShortenedUriString(uri));
+    switch (imageRequest.getSourceUriType()) {
+      case SOURCE_TYPE_NETWORK:
+        return getNetworkFetchToEncodedMemoryPrefetchSequence();
+      case SOURCE_TYPE_LOCAL_VIDEO_FILE:
+      case SOURCE_TYPE_LOCAL_IMAGE_FILE:
+        return getLocalFileFetchToEncodedMemoryPrefetchSequence();
+      default:
+        final Uri uri = imageRequest.getSourceUri();
+        throw new IllegalArgumentException(
+            "Unsupported uri scheme for encoded image fetch! Uri is: "
+                + getShortenedUriString(uri));
     }
   }
 
@@ -209,25 +224,27 @@ public class ProducerSequenceFactory {
 
     Uri uri = imageRequest.getSourceUri();
     Preconditions.checkNotNull(uri, "Uri is null.");
-    if (UriUtil.isNetworkUri(uri)) {
-      return getNetworkFetchSequence();
-    } else if (UriUtil.isLocalFileUri(uri)) {
-      if (MediaUtils.isVideo(MediaUtils.extractMime(uri.getPath()))) {
+
+    switch (imageRequest.getSourceUriType()) {
+      case SOURCE_TYPE_NETWORK:
+        return getNetworkFetchSequence();
+      case SOURCE_TYPE_LOCAL_VIDEO_FILE:
         return getLocalVideoFileFetchSequence();
-      } else {
+      case SOURCE_TYPE_LOCAL_IMAGE_FILE:
         return getLocalImageFileFetchSequence();
-      }
-    } else if (UriUtil.isLocalContentUri(uri)) {
-      return getLocalContentUriFetchSequence();
-    } else if (UriUtil.isLocalAssetUri(uri)) {
-      return getLocalAssetFetchSequence();
-    } else if (UriUtil.isLocalResourceUri(uri)) {
-      return getLocalResourceFetchSequence();
-    } else if (UriUtil.isDataUri(uri)) {
-      return getDataFetchSequence();
-    } else {
-      throw new IllegalArgumentException(
-          "Unsupported uri scheme! Uri is: " + getShortenedUriString(uri));
+      case SOURCE_TYPE_LOCAL_CONTENT:
+        return getLocalContentUriFetchSequence();
+      case SOURCE_TYPE_LOCAL_ASSET:
+        return getLocalAssetFetchSequence();
+      case SOURCE_TYPE_LOCAL_RESOURCE:
+        return getLocalResourceFetchSequence();
+      case SOURCE_TYPE_QUALIFIED_RESOURCE:
+        return getQualifiedResourceFetchSequence();
+      case SOURCE_TYPE_DATA:
+        return getDataFetchSequence();
+      default:
+        throw new IllegalArgumentException(
+            "Unsupported uri scheme! Uri is: " + getShortenedUriString(uri));
     }
   }
 
@@ -300,7 +317,7 @@ public class ProducerSequenceFactory {
     if (mLocalFileFetchToEncodedMemoryPrefetchSequence == null) {
       mLocalFileFetchToEncodedMemoryPrefetchSequence =
           ProducerFactory.newSwallowResultProducer(
-              getBackgroundNetworkFetchToEncodedMemorySequence());
+              getBackgroundLocalFileFetchToEncodeMemorySequence());
     }
     return mLocalFileFetchToEncodedMemoryPrefetchSequence;
   }
@@ -384,6 +401,25 @@ public class ProducerSequenceFactory {
           thumbnailProducers);
     }
     return mLocalContentUriFetchSequence;
+  }
+
+  /**
+   * bitmap cache get ->
+   * background thread hand-off -> multiplex -> bitmap cache -> decode ->
+   * branch on separate images
+   *   -> exif resize and rotate -> exif thumbnail creation
+   *   -> local image resize and rotate -> add meta data producer -> multiplex -> encoded cache ->
+   *   (webp transcode) -> qualified resource fetch.
+   */
+  private synchronized Producer<CloseableReference<CloseableImage>>
+  getQualifiedResourceFetchSequence() {
+    if (mQualifiedResourceFetchSequence == null) {
+      QualifiedResourceFetchProducer qualifiedResourceFetchProducer =
+          mProducerFactory.newQualifiedResourceFetchProducer();
+      mQualifiedResourceFetchSequence =
+          newBitmapCacheGetToLocalTransformSequence(qualifiedResourceFetchProducer);
+    }
+    return mQualifiedResourceFetchSequence;
   }
 
   /**

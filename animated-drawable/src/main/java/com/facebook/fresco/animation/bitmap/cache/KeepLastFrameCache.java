@@ -27,6 +27,9 @@ public class KeepLastFrameCache implements BitmapFrameCache {
 
   private int mLastFrameNumber = FRAME_NUMBER_UNSET;
 
+  @Nullable
+  private FrameCacheListener mFrameCacheListener;
+
   @GuardedBy("this")
   @Nullable
   private CloseableReference<Bitmap> mLastBitmapReference;
@@ -59,6 +62,11 @@ public class KeepLastFrameCache implements BitmapFrameCache {
   }
 
   @Override
+  public synchronized boolean contains(int frameNumber) {
+    return frameNumber == mLastFrameNumber && CloseableReference.isValid(mLastBitmapReference);
+  }
+
+  @Override
   public synchronized int getSizeInBytes() {
     return mLastBitmapReference == null
         ? 0
@@ -73,19 +81,40 @@ public class KeepLastFrameCache implements BitmapFrameCache {
   @Override
   public synchronized void onFrameRendered(
       int frameNumber,
-      CloseableReference<Bitmap> bitmap,
+      CloseableReference<Bitmap> bitmapReference,
       @BitmapAnimationBackend.FrameType int frameType) {
-    mLastFrameNumber = frameNumber;
-    if (bitmap != null
+    if (bitmapReference != null
         && mLastBitmapReference != null
-        && bitmap.get().equals(mLastBitmapReference.get())) {
+        && bitmapReference.get().equals(mLastBitmapReference.get())) {
       return;
     }
     CloseableReference.closeSafely(mLastBitmapReference);
-    mLastBitmapReference = CloseableReference.cloneOrNull(bitmap);
+    if (mFrameCacheListener != null && mLastFrameNumber != FRAME_NUMBER_UNSET) {
+      mFrameCacheListener.onFrameEvicted(this, mLastFrameNumber);
+    }
+    mLastBitmapReference = CloseableReference.cloneOrNull(bitmapReference);
+    if (mFrameCacheListener != null) {
+      mFrameCacheListener.onFrameCached(this, frameNumber);
+    }
+    mLastFrameNumber = frameNumber;
+  }
+
+  @Override
+  public void onFramePrepared(
+      int frameNumber,
+      CloseableReference<Bitmap> bitmapReference,
+      @BitmapAnimationBackend.FrameType int frameType) {
+  }
+
+  @Override
+  public void setFrameCacheListener(FrameCacheListener frameCacheListener) {
+    mFrameCacheListener = frameCacheListener;
   }
 
   private synchronized void closeAndResetLastBitmapReference() {
+    if (mFrameCacheListener != null && mLastFrameNumber != FRAME_NUMBER_UNSET) {
+      mFrameCacheListener.onFrameEvicted(this, mLastFrameNumber);
+    }
     CloseableReference.closeSafely(mLastBitmapReference);
     mLastBitmapReference = null;
     mLastFrameNumber = FRAME_NUMBER_UNSET;

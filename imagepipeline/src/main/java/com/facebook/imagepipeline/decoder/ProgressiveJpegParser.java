@@ -15,10 +15,10 @@ import java.io.InputStream;
 import com.facebook.common.internal.Closeables;
 import com.facebook.common.internal.Preconditions;
 import com.facebook.common.internal.Throwables;
+import com.facebook.common.memory.ByteArrayPool;
+import com.facebook.common.memory.PooledByteArrayBufferedInputStream;
 import com.facebook.common.util.StreamUtil;
 import com.facebook.imagepipeline.image.EncodedImage;
-import com.facebook.imagepipeline.memory.ByteArrayPool;
-import com.facebook.imagepipeline.memory.PooledByteArrayBufferedInputStream;
 import com.facebook.imageutils.JfifUtil;
 
 /**
@@ -89,6 +89,7 @@ public class ProgressiveJpegParser {
 
   private int mBestScanNumber;
   private int mBestScanEndOffset;
+  private boolean mEndMarkerRead;
 
   private final ByteArrayPool mByteArrayPool;
 
@@ -184,8 +185,14 @@ public class ProgressiveJpegParser {
               mParserState = READ_MARKER_SECOND_BYTE;
             } else if (nextByte == JfifUtil.MARKER_ESCAPE_BYTE) {
               mParserState = READ_MARKER_FIRST_BYTE_OR_ENTROPY_DATA;
+            } else if (nextByte == JfifUtil.MARKER_EOI) {
+              mEndMarkerRead = true;
+              newScanOrImageEndFound(mBytesParsed - 2);
+              // There should be no data after the EOI marker, but in case there is, let's process
+              // the next byte as a first marker byte.
+              mParserState = READ_MARKER_FIRST_BYTE_OR_ENTROPY_DATA;
             } else {
-              if (nextByte == JfifUtil.MARKER_SOS || nextByte == JfifUtil.MARKER_EOI) {
+              if (nextByte == JfifUtil.MARKER_SOS) {
                 newScanOrImageEndFound(mBytesParsed - 2);
               }
 
@@ -265,5 +272,12 @@ public class ProgressiveJpegParser {
    */
   public int getBestScanNumber() {
     return mBestScanNumber;
+  }
+
+  /**
+   * Returns true if the end marker has been read.
+   */
+  public boolean isEndMarkerRead() {
+    return mEndMarkerRead;
   }
 }

@@ -20,9 +20,11 @@ import android.graphics.Bitmap;
 
 import com.facebook.common.internal.ImmutableMap;
 import com.facebook.common.internal.Preconditions;
+import com.facebook.common.memory.ByteArrayPool;
 import com.facebook.common.references.CloseableReference;
 import com.facebook.common.util.ExceptionWithNoStacktrace;
 import com.facebook.common.util.UriUtil;
+import com.facebook.imageformat.DefaultImageFormats;
 import com.facebook.imageformat.ImageFormat;
 import com.facebook.imagepipeline.common.ImageDecodeOptions;
 import com.facebook.imagepipeline.common.ResizeOptions;
@@ -34,7 +36,6 @@ import com.facebook.imagepipeline.image.CloseableStaticBitmap;
 import com.facebook.imagepipeline.image.EncodedImage;
 import com.facebook.imagepipeline.image.ImmutableQualityInfo;
 import com.facebook.imagepipeline.image.QualityInfo;
-import com.facebook.imagepipeline.memory.ByteArrayPool;
 import com.facebook.imagepipeline.request.ImageRequest;
 
 import static com.facebook.imagepipeline.producers.JobScheduler.JobRunnable;
@@ -418,18 +419,32 @@ public class DecodeProducer implements Producer<CloseableReference<CloseableImag
     protected synchronized boolean updateDecodeJob(EncodedImage encodedImage, boolean isLast) {
       boolean ret = super.updateDecodeJob(encodedImage, isLast);
       if (!isLast && EncodedImage.isValid(encodedImage)) {
+        if (encodedImage.getImageFormat() != DefaultImageFormats.JPEG) {
+          // decoding a partial image data of none jpeg type and displaying that result bitmap
+          // to the user have no sense.
+          return ret && isNotPartialData(encodedImage);
+        }
         if (!mProgressiveJpegParser.parseMoreData(encodedImage)) {
           return false;
         }
         int scanNum = mProgressiveJpegParser.getBestScanNumber();
-        if (scanNum <= mLastScheduledScanNumber ||
-            scanNum < mProgressiveJpegConfig.getNextScanNumberToDecode(
-                mLastScheduledScanNumber)) {
+        if (scanNum <= mLastScheduledScanNumber) {
+          // We have already decoded this scan, no need to do so again
+          return false;
+        }
+        if (scanNum < mProgressiveJpegConfig.getNextScanNumberToDecode(mLastScheduledScanNumber)
+            && !mProgressiveJpegParser.isEndMarkerRead()) {
+          // We have not reached the minimum scan set by the configuration and there
+          // are still more scans to be read (the end marker is not reached)
           return false;
         }
         mLastScheduledScanNumber = scanNum;
       }
       return ret;
+    }
+
+    private boolean isNotPartialData(EncodedImage encodedImage) {
+      return encodedImage.getEncodedCacheKey() != null;
     }
 
     @Override

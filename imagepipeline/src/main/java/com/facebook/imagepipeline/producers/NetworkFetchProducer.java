@@ -18,12 +18,12 @@ import java.util.Map;
 import android.os.SystemClock;
 
 import com.facebook.common.internal.VisibleForTesting;
+import com.facebook.common.memory.ByteArrayPool;
+import com.facebook.common.memory.PooledByteBuffer;
+import com.facebook.common.memory.PooledByteBufferFactory;
+import com.facebook.common.memory.PooledByteBufferOutputStream;
 import com.facebook.common.references.CloseableReference;
 import com.facebook.imagepipeline.image.EncodedImage;
-import com.facebook.imagepipeline.memory.ByteArrayPool;
-import com.facebook.imagepipeline.memory.PooledByteBuffer;
-import com.facebook.imagepipeline.memory.PooledByteBufferFactory;
-import com.facebook.imagepipeline.memory.PooledByteBufferOutputStream;
 
 /**
  * A producer to actually fetch images from the network.
@@ -150,8 +150,9 @@ public class NetworkFetchProducer implements Producer<EncodedImage> {
       PooledByteBufferOutputStream pooledOutputStream,
       FetchState fetchState) {
     Map<String, String> extraMap = getExtraMap(fetchState, pooledOutputStream.size());
-    fetchState.getListener()
-        .onProducerFinishWithSuccess(fetchState.getId(), PRODUCER_NAME, extraMap);
+    ProducerListener listener = fetchState.getListener();
+    listener.onProducerFinishWithSuccess(fetchState.getId(), PRODUCER_NAME, extraMap);
+    listener.onUltimateProducerReached(fetchState.getId(), PRODUCER_NAME, true);
     notifyConsumer(pooledOutputStream, true, fetchState.getConsumer());
   }
 
@@ -175,6 +176,8 @@ public class NetworkFetchProducer implements Producer<EncodedImage> {
   private void onFailure(FetchState fetchState, Throwable e) {
     fetchState.getListener()
         .onProducerFinishWithFailure(fetchState.getId(), PRODUCER_NAME, e, null);
+    fetchState.getListener()
+        .onUltimateProducerReached(fetchState.getId(), PRODUCER_NAME, false);
     fetchState.getConsumer().onFailure(e);
   }
 
@@ -185,7 +188,7 @@ public class NetworkFetchProducer implements Producer<EncodedImage> {
   }
 
   private boolean shouldPropagateIntermediateResults(FetchState fetchState) {
-    if (!fetchState.getContext().getImageRequest().getProgressiveRenderingEnabled()) {
+    if (!fetchState.getContext().isIntermediateResultExpected()) {
       return false;
     }
     return mNetworkFetcher.shouldPropagate(fetchState);

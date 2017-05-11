@@ -72,7 +72,6 @@ public class DiskStorageCache implements FileCache, DiskTrimmable {
   // All resourceId stored on disk (if any).
   @VisibleForTesting final Set<String> mResourceIndex;
 
-  @GuardedBy("mLock")
   private long mCacheSizeLastUpdateTime;
 
   private final long mCacheSizeLimitMinimum;
@@ -199,20 +198,13 @@ public class DiskStorageCache implements FileCache, DiskTrimmable {
           synchronized (mLock) {
             maybeUpdateFileCacheSize();
           }
+          mIndexReady = true;
           mCountDownLatch.countDown();
         }
       });
     } else {
       mCountDownLatch = new CountDownLatch(0);
     }
-
-    executorForBackgrountInit.execute(new Runnable() {
-
-      @Override
-      public void run() {
-        maybeDeleteSharedPreferencesFile(context, mStorage.getStorageName());
-      }
-    });
   }
 
   @Override
@@ -756,8 +748,6 @@ public class DiskStorageCache implements FileCache, DiskTrimmable {
       }
       if (mCacheStats.getCount() != count || mCacheStats.getSize() != size) {
         if (mIndexPopulateAtStartupEnabled && mResourceIndex != tempResourceIndex) {
-          mIndexReady = true;
-        } else if (mIndexPopulateAtStartupEnabled) {
           mResourceIndex.clear();
           mResourceIndex.addAll(tempResourceIndex);
         }
@@ -773,27 +763,5 @@ public class DiskStorageCache implements FileCache, DiskTrimmable {
     }
     mCacheSizeLastUpdateTime = now;
     return true;
-  }
-
-  //TODO(t12287315): Remove the temp method for deleting created Preference in next release
-  private static void maybeDeleteSharedPreferencesFile(
-      Context context,
-      String directoryName) {
-    Context applicationContext = context.getApplicationContext();
-    String path =
-        applicationContext.getFilesDir().getParent()
-            + File.separator
-            + "shared_prefs"
-            + File.separator
-            + SHARED_PREFS_FILENAME_PREFIX
-            + directoryName;
-    File file = new File(path + ".xml");
-    try {
-      if (file.exists()) {
-        file.delete();
-      }
-    } catch (Exception e) {
-      FLog.e(TAG, "Fail to delete SharedPreference from file system. ");
-    }
   }
 }

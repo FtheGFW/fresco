@@ -12,26 +12,20 @@ package com.facebook.imagepipeline.producers;
 import javax.annotation.Nullable;
 
 import java.io.InputStream;
-import java.lang.annotation.Retention;
 import java.util.concurrent.Executor;
 
-import android.support.annotation.IntDef;
-
 import com.facebook.common.internal.Preconditions;
+import com.facebook.common.memory.PooledByteBuffer;
+import com.facebook.common.memory.PooledByteBufferFactory;
+import com.facebook.common.memory.PooledByteBufferOutputStream;
 import com.facebook.common.references.CloseableReference;
 import com.facebook.common.util.TriState;
 import com.facebook.imageformat.DefaultImageFormats;
 import com.facebook.imageformat.ImageFormat;
 import com.facebook.imageformat.ImageFormatChecker;
 import com.facebook.imagepipeline.image.EncodedImage;
-import com.facebook.imagepipeline.memory.PooledByteBuffer;
-import com.facebook.imagepipeline.memory.PooledByteBufferFactory;
-import com.facebook.imagepipeline.memory.PooledByteBufferOutputStream;
-
-import com.facebook.imagepipeline.nativecode.WebpTranscoderFactory;
 import com.facebook.imagepipeline.nativecode.WebpTranscoder;
-
-import static java.lang.annotation.RetentionPolicy.SOURCE;
+import com.facebook.imagepipeline.nativecode.WebpTranscoderFactory;
 
 /**
  * Transcodes WebP to JPEG / PNG.
@@ -187,11 +181,13 @@ public class WebpTranscodeProducer implements Producer<EncodedImage> {
             imageInputStream,
             outputStream,
             DEFAULT_JPEG_QUALITY);
+      encodedImage.setImageFormat(DefaultImageFormats.JPEG);
     } else if (imageFormat == DefaultImageFormats.WEBP_LOSSLESS ||
         imageFormat == DefaultImageFormats.WEBP_EXTENDED_WITH_ALPHA) {
       // In this case we always transcode to PNG
       WebpTranscoderFactory.getWebpTranscoder()
           .transcodeWebpToPng(imageInputStream, outputStream);
+      encodedImage.setImageFormat(DefaultImageFormats.PNG);
     } else {
       throw new IllegalArgumentException("Wrong image format");
     }

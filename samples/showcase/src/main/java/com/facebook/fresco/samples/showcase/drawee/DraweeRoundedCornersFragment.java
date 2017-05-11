@@ -83,7 +83,7 @@ public class DraweeRoundedCornersFragment extends BaseShowcaseFragment {
     initColors();
 
     final Spinner scaleType = (Spinner) view.findViewById(R.id.scaleType);
-    final SimpleScaleTypeAdapter scaleTypeAdapter = new SimpleScaleTypeAdapter();
+    final SimpleScaleTypeAdapter scaleTypeAdapter = SimpleScaleTypeAdapter.createForAllScaleTypes();
     scaleType.setAdapter(scaleTypeAdapter);
     scaleType.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
       @Override
@@ -147,6 +147,7 @@ public class DraweeRoundedCornersFragment extends BaseShowcaseFragment {
     mDraweeFancy = (SimpleDraweeView) view.findViewById(R.id.drawee_fancy);
   }
 
+  @SuppressWarnings("ResourceType")
   private void initColors() {
     final TypedArray attrs =
         getActivity().getTheme().obtainStyledAttributes(R.style.AppTheme, new int[]{

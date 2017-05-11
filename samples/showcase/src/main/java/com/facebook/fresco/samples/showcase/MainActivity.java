@@ -15,6 +15,7 @@ import android.content.res.TypedArray;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.design.widget.NavigationView;
 import android.support.v4.app.Fragment;
 import android.support.v4.graphics.drawable.DrawableCompat;
@@ -28,6 +29,8 @@ import android.view.Menu;
 import android.view.MenuItem;
 
 import com.facebook.fresco.samples.showcase.drawee.DraweeHierarchyFragment;
+import com.facebook.fresco.samples.showcase.drawee.DraweeMediaPickerFragment;
+import com.facebook.fresco.samples.showcase.drawee.DraweeRecyclerViewFragment;
 import com.facebook.fresco.samples.showcase.drawee.DraweeRotationFragment;
 import com.facebook.fresco.samples.showcase.drawee.DraweeRoundedCornersFragment;
 import com.facebook.fresco.samples.showcase.drawee.DraweeScaleTypeFragment;
@@ -36,10 +39,14 @@ import com.facebook.fresco.samples.showcase.drawee.DraweeSpanSimpleTextFragment;
 import com.facebook.fresco.samples.showcase.imageformat.color.ImageFormatColorFragment;
 import com.facebook.fresco.samples.showcase.imageformat.gif.ImageFormatGifFragment;
 import com.facebook.fresco.samples.showcase.imageformat.keyframes.ImageFormatKeyframesFragment;
+import com.facebook.fresco.samples.showcase.imageformat.override.ImageFormatOverrideExample;
+import com.facebook.fresco.samples.showcase.imageformat.pjpeg.ImageFormatProgressiveJpegFragment;
 import com.facebook.fresco.samples.showcase.imageformat.svg.ImageFormatSvgFragment;
+import com.facebook.fresco.samples.showcase.imagepipeline.ImagePipelineQualifiedResourceFragment;
 import com.facebook.fresco.samples.showcase.imagepipeline.ImagePipelineNotificationFragment;
 import com.facebook.fresco.samples.showcase.imagepipeline.ImagePipelinePostProcessorFragment;
 import com.facebook.fresco.samples.showcase.imagepipeline.ImagePipelinePrefetchFragment;
+import com.facebook.fresco.samples.showcase.imagepipeline.MediaVariationsFragment;
 import com.facebook.fresco.samples.showcase.misc.WelcomeFragment;
 import com.facebook.fresco.samples.showcase.settings.SettingsFragment;
 
@@ -47,6 +54,8 @@ public class MainActivity extends AppCompatActivity
     implements NavigationView.OnNavigationItemSelectedListener {
 
   private static final int INITIAL_NAVDRAWER_ITEM_ID = R.id.nav_welcome;
+
+  private static final String KEY_SELECTED_NAVDRAWER_ITEM_ID = "selected_navdrawer_item_id";
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -65,8 +74,11 @@ public class MainActivity extends AppCompatActivity
     navigationView.setNavigationItemSelectedListener(this);
 
     if (savedInstanceState == null) {
-      handleNavigationItemClick(INITIAL_NAVDRAWER_ITEM_ID);
-      navigationView.setCheckedItem(INITIAL_NAVDRAWER_ITEM_ID);
+      int selectedItem = PreferenceManager.getDefaultSharedPreferences(this).getInt(
+          KEY_SELECTED_NAVDRAWER_ITEM_ID,
+          INITIAL_NAVDRAWER_ITEM_ID);
+      handleNavigationItemClick(selectedItem);
+      navigationView.setCheckedItem(selectedItem);
     }
   }
 
@@ -97,7 +109,7 @@ public class MainActivity extends AppCompatActivity
     } finally {
       styles.recycle();
     }
-    return true;
+    return super.onCreateOptionsMenu(menu);
   }
 
   @Override
@@ -123,6 +135,9 @@ public class MainActivity extends AppCompatActivity
       case R.id.nav_drawee_simple:
         fragment = new DraweeSimpleFragment();
         break;
+      case R.id.nav_drawee_media_picker:
+        fragment = new DraweeMediaPickerFragment();
+        break;
       case R.id.nav_drawee_scaletype:
         fragment = new DraweeScaleTypeFragment();
         break;
@@ -138,8 +153,14 @@ public class MainActivity extends AppCompatActivity
       case R.id.nav_drawee_rotation:
         fragment = new DraweeRotationFragment();
         break;
+      case R.id.nav_drawee_recycler:
+        fragment = new DraweeRecyclerViewFragment();
+        break;
 
       // Imagepipline
+      case R.id.nav_imagepipeline_media_variations:
+        fragment = new MediaVariationsFragment();
+        break;
       case R.id.nav_imagepipeline_notification:
         fragment = new ImagePipelineNotificationFragment();
         break;
@@ -149,8 +170,14 @@ public class MainActivity extends AppCompatActivity
       case R.id.nav_imagepipeline_prefetch:
         fragment = new ImagePipelinePrefetchFragment();
         break;
+      case R.id.nav_imagepipeline_qualified_resource:
+        fragment = new ImagePipelineQualifiedResourceFragment();
+        break;
 
       // Image Formats
+      case R.id.nav_format_pjpeg:
+        fragment = new ImageFormatProgressiveJpegFragment();
+        break;
       case R.id.nav_format_color:
         fragment = new ImageFormatColorFragment();
         break;
@@ -163,6 +190,9 @@ public class MainActivity extends AppCompatActivity
       case R.id.nav_format_keyframes:
         fragment = new ImageFormatKeyframesFragment();
         break;
+      case R.id.nav_format_override:
+        fragment = new ImageFormatOverrideExample();
+        break;
 
       // More
       case R.id.nav_welcome:
@@ -172,9 +202,18 @@ public class MainActivity extends AppCompatActivity
         fragment = new SettingsFragment();
         break;
       default:
-        throw new IllegalArgumentException("No example with this id!");
+        // Default to the welcome fragment
+        fragment = new WelcomeFragment();
     }
     showFragment(fragment);
+
+    // Save the item if it's not the settings fragment
+    if (itemId != R.id.nav_action_settings) {
+      PreferenceManager.getDefaultSharedPreferences(this)
+          .edit()
+          .putInt(KEY_SELECTED_NAVDRAWER_ITEM_ID, itemId)
+          .apply();
+    }
   }
 
   /**

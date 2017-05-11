@@ -14,7 +14,9 @@ import javax.annotation.concurrent.GuardedBy;
 import android.graphics.Bitmap;
 
 import com.facebook.common.internal.Preconditions;
+import com.facebook.common.internal.VisibleForTesting;
 import com.facebook.common.references.CloseableReference;
+import com.facebook.common.references.ResourceReleaser;
 import com.facebook.fresco.animation.bitmap.BitmapAnimationBackend;
 import com.facebook.fresco.animation.bitmap.BitmapFrameCache;
 import com.facebook.imagepipeline.animated.impl.AnimatedFrameCache;
@@ -44,13 +46,13 @@ public class FrescoFrameCache implements BitmapFrameCache {
   @Nullable
   @Override
   public synchronized CloseableReference<Bitmap> getCachedFrame(int frameNumber) {
-    return extractAndClose(mAnimatedFrameCache.get(frameNumber));
+    return convertToBitmapReference(mAnimatedFrameCache.get(frameNumber));
   }
 
   @Nullable
   @Override
   public synchronized CloseableReference<Bitmap> getFallbackFrame(int frameNumber) {
-    return extractAndClose(CloseableReference.cloneOrNull(mLastCachedItem));
+    return convertToBitmapReference(CloseableReference.cloneOrNull(mLastCachedItem));
   }
 
   @Nullable
@@ -62,7 +64,12 @@ public class FrescoFrameCache implements BitmapFrameCache {
     if (!mEnableBitmapReusing) {
       return null;
     }
-    return extractAndClose(mAnimatedFrameCache.getForReuse());
+    return convertToBitmapReference(mAnimatedFrameCache.getForReuse());
+  }
+
+  @Override
+  public synchronized boolean contains(int frameNumber) {
+    return mAnimatedFrameCache.contains(frameNumber);
   }
 
   @Override
@@ -101,18 +108,45 @@ public class FrescoFrameCache implements BitmapFrameCache {
     }
   }
 
+  @Override
+  public synchronized void onFramePrepared(
+      int frameNumber,
+      CloseableReference<Bitmap> bitmapReference,
+      @BitmapAnimationBackend.FrameType int frameType) {
+  }
+
+  @Override
+  public void setFrameCacheListener(FrameCacheListener frameCacheListener) {
+    // TODO (t15557326) Not supported for now
+  }
+
+  @VisibleForTesting
   @Nullable
-  private static CloseableReference<Bitmap> extractAndClose(
-      @Nullable CloseableReference<CloseableImage> closeableImage) {
-    try {
-      if (CloseableReference.isValid(closeableImage) &&
-          closeableImage.get() instanceof CloseableStaticBitmap) {
-        return ((CloseableStaticBitmap) closeableImage.get()).convertToBitmapReference();
+  static CloseableReference<Bitmap> convertToBitmapReference(
+      final @Nullable CloseableReference<CloseableImage> closeableImage) {
+    if (CloseableReference.isValid(closeableImage) &&
+        closeableImage.get() instanceof CloseableStaticBitmap) {
+      CloseableStaticBitmap closeableStaticBitmap = (CloseableStaticBitmap) closeableImage.get();
+      if (closeableStaticBitmap != null && !closeableStaticBitmap.isClosed()) {
+        // For better performance, we directly use the given closeable image and dont clone it.
+        // NOTE: closeableStaticBitmap.convertToBitmapReference() cannot be used here
+        // since this would detach the underlying reference from the CloseableImage
+        // which is required for correct size computations in CountingMemoryCache.
+        // If convertToBitmapReference() is used, the cache cannot correctly compute the
+        // size in bytes, which will slowly increase until no more bitmaps can be cached.
+        return CloseableReference.of(
+            closeableStaticBitmap.getUnderlyingBitmap(),
+            new ResourceReleaser<Bitmap>() {
+              @Override
+              public void release(Bitmap value) {
+                CloseableReference.closeSafely(closeableImage);
+              }
+            });
       }
-      return null;
-    } finally {
-      CloseableReference.closeSafely(closeableImage);
     }
+    // Not a bitmap reference, so we have to close right away.
+    CloseableReference.closeSafely(closeableImage);
+    return null;
   }
 
   private static int getBitmapSizeBytes(

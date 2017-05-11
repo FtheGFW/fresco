@@ -9,14 +9,14 @@
 
 package com.facebook.imagepipeline.producers;
 
-import com.facebook.common.internal.ImmutableMap;
-import com.facebook.common.references.CloseableReference;
-import com.facebook.imagepipeline.cache.MemoryCache;
-import com.facebook.imagepipeline.cache.CacheKeyFactory;
-import com.facebook.imagepipeline.image.EncodedImage;
-import com.facebook.imagepipeline.memory.PooledByteBuffer;
-import com.facebook.imagepipeline.request.ImageRequest;
 import com.facebook.cache.common.CacheKey;
+import com.facebook.common.internal.ImmutableMap;
+import com.facebook.common.memory.PooledByteBuffer;
+import com.facebook.common.references.CloseableReference;
+import com.facebook.imagepipeline.cache.CacheKeyFactory;
+import com.facebook.imagepipeline.cache.MemoryCache;
+import com.facebook.imagepipeline.image.EncodedImage;
+import com.facebook.imagepipeline.request.ImageRequest;
 
 /**
  * Memory cache producer for the encoded memory cache.
@@ -63,6 +63,7 @@ public class EncodedMemoryCacheProducer implements Producer<EncodedImage> {
               listener.requiresExtraMap(requestId)
                   ? ImmutableMap.of(EXTRA_CACHED_VALUE_FOUND, "true")
                   : null);
+          listener.onUltimateProducerReached(requestId, PRODUCER_NAME, true);
           consumer.onProgressUpdate(1f);
           consumer.onNewResult(cachedEncodedImage, true);
           return;
@@ -79,6 +80,7 @@ public class EncodedMemoryCacheProducer implements Producer<EncodedImage> {
             listener.requiresExtraMap(requestId)
                 ? ImmutableMap.of(EXTRA_CACHED_VALUE_FOUND, "false")
                 : null);
+        listener.onUltimateProducerReached(requestId, PRODUCER_NAME, false);
         consumer.onNewResult(null, true);
         return;
       }
